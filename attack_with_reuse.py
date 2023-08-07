@@ -1,8 +1,8 @@
 import os
-import hashlib
 import random
 import string
-from binascii import hexlify, unhexlify
+import time
+from binascii import hexlify
 from hashlib import blake2s
 
 class LamportSigner:
@@ -10,21 +10,21 @@ class LamportSigner:
         self.private_key, self.public_key = self._generate_keys()
 
     def _generate_keys(self):
-        private_key = [os.urandom(32) for _ in range(512)]  # 256 pairs of keys
+        private_key = [os.urandom(32) for _ in range(2)]  # Only 2 keys: one for 0 and one for 1
         public_key = [blake2s(k).digest() for k in private_key]
         return private_key, public_key
 
     def sign_bit(self, bit, block):
         block_hash = blake2s(block.encode()).digest()
-        if ((block_hash[bit // 8] >> (bit % 8)) & 1) == 1:
-            return self.private_key[2 * bit + 1]
-        else:
-            return self.private_key[2 * bit]
+        index = (block_hash[bit // 8] >> (bit % 8)) & 1
+        return self.private_key[index]
 
 def generate_valid_block(chars=string.ascii_letters + string.digits):
     length = random.randint(1, 2**6)
     valid_block = ''.join(random.choice(chars) for _ in range(length))
     return valid_block
+
+start_time = time.time()
 
 # The malicious block
 block = "This is a malicious block do not sign!"
@@ -36,9 +36,12 @@ malicious_hash = hash_func.digest()
 blocks = [None] * 256
 signatures = [None] * 256
 signers = [LamportSigner() for _ in range(256)]  # Create 256 signers
+total_blocks_generated = 0
 
 # Iterate over each bit until we have a valid block for each
 while None in blocks:
+    total_blocks_generated += 1
+
     # Generate a valid block
     valid_block = generate_valid_block()
 
@@ -55,14 +58,16 @@ while None in blocks:
     # If the block matches any unassigned bits, use it for those signers
     for i in to_assign:
         blocks[i] = valid_block
-        signature = signers[i].sign_bit(i, valid_block)  # Use the i-th signer to sign the i-th bit
-        signatures[i] = signature
+        signatures[i] = signers[i].sign_bit(i, valid_block) # Use the i-th signer to sign the i-th bit
 
 # Create the "signed" malicious block by concatenating all the signatures
 signed_malicious_block = b''.join(signatures)
 
 # "Hash" the "signed" malicious block by selecting the appropriate public keys
-hashed_signed_malicious_block = [signers[i].public_key[2 * i + 1] if ((malicious_hash[i // 8] >> (i % 8)) & 1) == 1 else signers[i].public_key[2 * i] for i in range(256)]
+hashed_signed_malicious_block = [signers[i].public_key[(malicious_hash[i // 8] >> (i % 8)) & 1] for i in range(256)]
+
+end_time = time.time()
+
 
 # Verify the signatures by comparing the "hashed" signed block with the public keys
 for i in range(256):
@@ -73,3 +78,5 @@ else:
     print("All signatures verified successfully")
 
 print("Malicious hash: ", hexlify(malicious_hash).decode())
+print(f"Total blocks used in the attack: {total_blocks_generated}")
+print(f"Attack took {end_time - start_time} seconds.")
