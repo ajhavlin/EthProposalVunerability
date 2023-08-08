@@ -5,6 +5,15 @@ import time
 from binascii import hexlify
 from hashlib import blake2s
 
+# Block
+class Block():
+    def __init__(self,name,content):
+        self.name = name
+        self.content = content
+    
+    def encode(self):
+        return(self.content.encode())
+        
 # Simulate the signing validators
 class LamportSigner:
     def __init__(self):
@@ -22,7 +31,9 @@ class LamportSigner:
 
 def generate_valid_block(chars=string.ascii_letters + string.digits):
     length = random.randint(1, 2**6)
-    valid_block = ''.join(random.choice(chars) for _ in range(length))
+    valid_block_content = ''.join(random.choice(chars) for _ in range(length))
+    valid_block = Block("This is a valid block",valid_block_content)
+    time.sleep(random.uniform(0.1,0.3)) # Estimate of average time for Geth to produce a block with transactions
     return valid_block
 
 def hash_data(data):
@@ -33,8 +44,9 @@ def hash_data(data):
 start_time = time.time()
 
 # The malicious block
-block = "This is a malicious block do not sign!"
-malicious_hash = hash_data(block.encode())
+block_content = "Haha evil"
+malicious_block = Block("This is a malicious block do not sign!", block_content)
+malicious_hash = hash_data(malicious_block.encode())
 
 # Create 256 versions of valid blocks each matching the malicious block's hash at a bit
 blocks = [None] * 256
@@ -65,6 +77,7 @@ while unassigned_indices:
             signatures[i] = signers[i].sign_bit(i, valid_block)  # Use the i-th signer to sign the i-th bit
             indices_to_remove.append(i)
             
+    time.sleep(random.uniform(0.01,0.1)) # Simulate network delays
     unassigned_indices -= set(indices_to_remove)
             
 
